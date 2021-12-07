@@ -2,20 +2,22 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"strconv"
-	"time"
-
 	"github.com/bwmarrin/discordgo"
 	"github.com/go-ini/ini"
 	"github.com/shkh/lastfm-go/lastfm"
+	"log"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
 )
 
-func scrobbler() error {
+func main() {
+
 	cfg, err := ini.Load("config.ini")
 	if err != nil {
 		log.Println(err)
-		return err
 	}
 
 	token := cfg.Section("discord").Key("token").String()
@@ -27,7 +29,6 @@ func scrobbler() error {
 
 	if err != nil {
 		log.Println(err)
-		return err
 	}
 
 	api := lastfm.New(apiKey, "")
@@ -35,23 +36,40 @@ func scrobbler() error {
 	log.Println("Settings loaded: config.ini")
 
 	if endlessMode {
-		log.Println("Endless mode! Ctrl+C to exit")
+		log.Println("Endless mode! Press `Ctrl+C` to exit")
 	}
 	dg, err := discordgo.New(token)
 	if err != nil {
 		log.Println("Discord error: ", err)
-		return err
+		fmt.Scanln()
+		return
 	}
 	log.Println("Authorized to Discord")
 	if err := dg.Open(); err != nil {
 		log.Println("Discord error: ", err)
-		return err
+		fmt.Scanln()
+		return
 	}
 	defer dg.Close()
 	log.Println("Connected to Discord")
 
 	interval := time.Duration(configInterval*1000) * time.Millisecond
 	ticker := time.NewTicker(interval)
+
+	var deathChan = make(chan os.Signal, 0)
+	signal.Notify(deathChan, os.Interrupt, syscall.SIGTERM)
+	go func(dg *discordgo.Session, deatchChan chan os.Signal) {
+		<-deathChan
+		statusData := discordgo.UpdateStatusData{Game: nil}
+		if err := dg.UpdateStatusComplex(statusData); err != nil {
+			log.Println("Error during deleting status:", err)
+			return
+		}
+		log.Println("Deleting status...")
+		time.Sleep(5 * time.Second)
+		log.Println("Deleted status after closing")
+		os.Exit(0)
+	}(dg, deathChan)
 	var prevTrack string
 	for {
 		select {
@@ -59,6 +77,10 @@ func scrobbler() error {
 			result, err := api.User.GetRecentTracks(lastfm.P{"limit": "1", "user": username})
 			if err != nil {
 				log.Println("LastFM error: ", err)
+				if !endlessMode {
+					fmt.Scanln()
+					return
+				}
 			} else {
 				if len(result.Tracks) > 0 {
 					currentTrack := result.Tracks[0]
@@ -78,7 +100,8 @@ func scrobbler() error {
 						if err := dg.UpdateStatusComplex(statusData); err != nil {
 							log.Println("Discord error: ", err)
 							if !endlessMode {
-								return err
+								fmt.Scanln()
+								break
 							}
 						}
 						if prevTrack != trackName {
@@ -93,7 +116,8 @@ func scrobbler() error {
 						if err := dg.UpdateStatusComplex(statusData); err != nil {
 							log.Println("Discord error: ", err)
 							if !endlessMode {
-								return err
+								fmt.Scanln()
+								break
 							}
 						}
 					}
@@ -101,10 +125,4 @@ func scrobbler() error {
 			}
 		}
 	}
-}
-
-func main() {
-	scrobbler()
-	log.Println("Press the Enter Key to terminate the console screen!")
-	fmt.Scanln()
 }
