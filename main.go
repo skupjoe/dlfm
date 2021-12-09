@@ -21,7 +21,6 @@ func scrobbler() error {
 	token := cfg.Section("discord").Key("token").String()
 	apiKey := cfg.Section("lastfm").Key("api_key").String()
 	username := cfg.Section("lastfm").Key("username").String()
-	title := cfg.Section("app").Key("title").String()
 	endlessMode, err := strconv.ParseBool(cfg.Section("app").Key("endless_mode").String())
 	configInterval, err := cfg.Section("lastfm").Key("check_interval").Int()
 
@@ -67,7 +66,7 @@ func scrobbler() error {
 					if isNowPlaying {
 						statusData := discordgo.UpdateStatusData{
 							Game: &discordgo.Game{
-								Name:    title,
+								Name:    trackName,
 								Type:    discordgo.GameTypeListening,
 								Details: currentTrack.Name,
 								State:   currentTrack.Artist.Name,
