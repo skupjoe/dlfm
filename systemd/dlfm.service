@@ -1,0 +1,18 @@
+[Unit]
+Description=DLFM - Discord Lastfm Scrobbler - https://github.com/dikey0ficial/dlfm
+After=network.target
+
+[Service]
+User=root
+Type=simple
+ExecStart=/opt/dlfm/dlfm
+WorkingDirectory=/opt/dlfm
+RestartSec=10
+Restart=always
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=dlfm
+
+[Install]
+WantedBy=multi-user.target
